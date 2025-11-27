@@ -1,11 +1,33 @@
 pipeline {
-    agent any
 
-    stages {
-        stage('Maven Version') {
-            steps {
-                sh 'mvn -v'
-            }
-        }
-    }
+ agent any
+
+ tools {jdk 'JAVA_HOME’, maven 'M2_HOME'}
+
+ stages {
+
+ stage('GIT') {
+
+           steps {
+
+               git branch: 'main',
+
+               url: ' https://github.com/EmnaDorai/jenkins.git'
+
+          }
+
+     }
+
+ stage ('Compile Stage') {
+
+ steps {
+
+ sh 'mvn clean compile'
+
+ }
+
+ }
+
+ }
+
 }
