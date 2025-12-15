@@ -9,33 +9,49 @@ pipeline {
     environment {
         IMAGE_NAME = "emnadorai/myapp"
         TAG = "latest"
+        DOCKER_HUB_CREDENTIALS = "dockerhub-credentials" // ID dans Jenkins
     }
 
     stages {
 
-        // ====== CI PART ======
-        stage('GIT') {
+        // ====== CI ======
+        stage('Git Checkout') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/EmnaDorai/jenkins'
             }
         }
 
-        stage('Compile Stage') {
+        stage('Build Maven') {
             steps {
                 sh 'mvn clean package -DskipTests'
             }
         }
 
-        // ====== CD PART ======
-        stage('Docker Build') {
+        // ====== Docker Build & Push ======
+        stage('Docker Build & Push') {
             steps {
-                // Construit l'image Docker directement pour Minikube
-                sh 'eval $(minikube docker-env) && docker build -t $IMAGE_NAME:$TAG .'
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', DOCKER_HUB_CREDENTIALS) {
+                        sh "docker build -t $IMAGE_NAME:$TAG ."
+                        sh "docker push $IMAGE_NAME:$TAG"
+                    }
+                }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        // ====== Deploy to Minikube ======
+        stage('Deploy MySQL') {
+            steps {
+                sh '''
+                kubectl apply -f k8s/mysql/mysql-secret.yaml
+                kubectl apply -f k8s/mysql/mysql-deployment.yaml
+                kubectl apply -f k8s/mysql/mysql-service.yaml
+                '''
+            }
+        }
+
+        stage('Deploy Application') {
             steps {
                 sh '''
                 kubectl apply -f k8s/deployment.yaml
@@ -47,10 +63,10 @@ pipeline {
 
     post {
         success {
-            echo "CI/CD terminé avec succès ! Application déployée sur Minikube."
+            echo "Pipeline CI/CD terminé avec succès ! Application déployée sur Minikube et image poussée sur Docker Hub."
         }
         failure {
-            echo "Le pipeline a échoué. Vérifiez les logs."
+            echo "Le pipeline a échoué. Vérifie les logs."
         }
     }
 }
